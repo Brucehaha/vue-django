@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.15.3/axios.min.js"></script>
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <div id="app3">
+    <h1>资产列表</h1>
+    <table border="1">
+        <thead id="table_th">
+            <tr>
+                <th v-for="h in th">[[ h.title ]]</th>
+            </tr>
+        </thead>
+        <tbody id="table_tb"></tbody>
+    </table>
+
+    </div>
+
+    <script>
+        new Vue({
+          delimiters: ['[[', ']]'],
+          el: '#app3',
+          data: {
+                th: [1,2,3],
+          },
+        mounted: function() {
+              var self = this;
+              axios
+                  .get("/web/asset-json.html").then(
+                  function (response) {
+                      console.log(response.data.table_config);
+                      self.th = response.data.table_config;
+                      console.log(self.th);
+
+                  });
+        },
+    })
+    </script>
+
+
+</body>
+</html>
