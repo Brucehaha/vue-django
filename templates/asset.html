@@ -1,44 +1,259 @@
 <!DOCTYPE html>
 <html lang="en">
-<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.6.8/dist/vue.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.15.3/axios.min.js"></script>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
 <head>
     <meta charset="UTF-8">
     <title>Title</title>
 </head>
 <body>
     <div id="app3">
-    <h1>资产列表</h1>
-    <table border="1">
-        <thead id="table_th">
-            <tr>
-                <th v-for="h in th">[[ h.title ]]</th>
-            </tr>
-        </thead>
-        <tbody id="table_tb"></tbody>
-    </table>
+        <div class="container">
+                <div>
+                    <h1>Assets</h1>
+                </div>
+                <div class="btn-group" role="group" aria-label="Basic example">
+                  <button type="button" class="btn btn-default border">All</button>
+                  <button type="button" class="btn btn-default border">Reverse</button>
+                  <button type="button" class="btn btn-default border">Cancel</button>
+                  <button type="button" class="btn border"
+                          v-on:click="editMode=!editMode"
+                          v-bind:class="editMode ? 'btn-warning':'btn-default'"
+                          v-text="!editMode ? 'Edit Mode':'Quit Edit Mode'"
+                          >
+                  </button>
+                  <button type="button" class="btn btn-default border">Bulk Delete</button>
+                  <button type="button" class="btn btn-default border">Save</button>
+                </div>
+            <table  class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th scope="col" v-for="t in table_list" v-if="t.display" v-text="t.title"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <inputBox :rows="rows" :columns="table_list"></inputBox>
+
+                </tbody>
+            </table>
+
 
     </div>
-
-    <script>
+        </div>
+    <script type="module">
+        import mymixin from "../static/vue/mixins/mixins.js";
+        Vue.config.devtools = true;
+        Vue.prototype.$http = axios;
         new Vue({
-          delimiters: ['[[', ']]'],
-          el: '#app3',
-          data: {
-                th: [1,2,3],
-          },
-        mounted: function() {
-              var self = this;
-              axios
-                  .get("/web/asset-json.html").then(
-                  function (response) {
-                      console.log(response.data.table_config);
-                      self.th = response.data.table_config;
-                      console.log(self.th);
+            mixins: [mymixin],
+            delimiters: ['[[', ']]'],
+            el: '#app3',
+            data: function() {
+                return {
+                    editMode: false,
+                    q:[],
+                    table_list: new Set(),
+                    rows:[],
+                    selected:{"test":1, },
+                    checkedNames: {},
+                }
 
+            },
+
+            methods: {
+                filterHTML: function(row, column){
+                    var self = this;
+                    var _html = ""
+                    if (row[column.q].includes('checkbox')) {
+                        console.log(row[column.q], row['id'])
+                        _html = `<input type="checkbox"
+                                        v-model="checkedNames"
+                                        value="${row['id']}"
+                                         >`
+                        return _html
+                    }
+                    if (!this.editMode) {
+                        _html = row[column.q]
+                    }else {
+                        if (!self.isEmpty(column.attrs)) {
+                            if(column.attrs['edit-enable']) {
+                                var _html = '';
+                                if (column.attrs['edit-type'] == "select") {
+                                    var editType = column.q;
+                                    self.selected[editType] = row[column.q];
+                                    _html = `<select v-model="selected[${column.q}]">
+                                               <option>${row[column.q]}</option>
+                                             </select>
+                                            `;
+                                } else if(column.attrs['edit-type'] == "input") {
+                                    _html = `<input value="${row[column.q]}">`;
+                                } else {
+                                    _html = row[column.q];
+
+                                }
+
+                            }
+                        } else {
+                            _html = row[column.q];
+                        }
+                    }
+                    return _html
+                },
+                getAttrs: function(i) {
+                    return {
+                        ...i
+                    }
+                },
+                // list = [[1,a], [2, b]]
+                getType: function(id, list){
+                    let type = list.filter((x) => {
+                      return x[0]=== id
+                  })
+
+                  return type[0][1]
+              },
+                getContent: function(value, rep) {
+                  //'content'= "test-{n}" => 'content' = "test-1"
+                    var content = value.text.content.replace(/\{(\w+)\}/g, (km, m) => {
+                        //console.log(m, rep[m])
+                        return rep[m];
                   });
-        },
-    })
+                  return content
+              },
+            },
+            created: function() {
+                // loop row of  table data:
+                //       loop each column configure object
+                //         if column kwargs start with @id, replace kwargs value with row[id], @@ replace from
+                // globle list. else, do nonthing
+                //           assign kwargs to content by replace method
+                //           assign content to row[column.q]
+                //
+                  var self = this;
+                  this.$http
+                      .get("/web/asset-json.html").then(
+                          function (response) {
+                              var table_config = [...response.data.table_config];
+                              var data = Object.assign([],response.data.data_list);
+                              var global_dict = Object.assign({}, response.data.global_dict);
+                              // row= {id:1, idc: 3, ...}
+                              data.map((row) => {
+                                  var row_temp = Object.assign({}, row);
+                                  table_config.map((column) => {
+                                      // kwargs: {'n': "@@device_status_choices"} => kwargs: {'n': 1}
+                                      let text = {...column.text};
+                                      let kwargs = {};
+                                      let content1 ="";
+                                      // replace column not in row and has q as None and not a database column
+                                      if(column.q === null) {
+                                          console.log(column.q)
+                                          column.q = column.title;
+                                          row_temp[column.q] = column.title;
+
+                                      }
+
+                                      if (self.isEmpty(text)) {
+                                            content1 = row_temp[column.q]
+                                      }
+
+                                      if (!self.isEmpty(text)) {
+                                          kwargs = {...text.kwargs};
+                                      }
+
+                                      if (!self.isEmpty(text) && !self.isEmpty(kwargs)) {
+                                          var rep = Object.assign({}, kwargs);
+                                          for (var k in kwargs) {
+
+                                              if (kwargs[k].substring(0,2) === "@@"){
+                                              // replace kwargs column
+                                                rep[k]= self.getType(row_temp[column.q],
+                                                    global_dict[kwargs[k]
+                                                        .substring(2, kwargs[k].length)]);
+                                                content1 = self.getContent(column, rep)
+
+                                              } else if (kwargs[k][0]==='@') {
+                                                  rep[k] = row_temp[kwargs[k].substring(1, kwargs[k].length)]
+                                                  content1 =self.getContent(column, rep);
+                                              }
+                                          }
+                                      }
+                                      if (!self.isEmpty(text) && self.isEmpty(kwargs)) {
+                                           content1 = text.content;
+
+                                       }
+                                      row_temp[column.q] = content1;
+                                      self.table_list.add(column);
+
+
+                                  });
+                                  self.rows.push(row_temp);
+
+
+                              });
+                          }
+                  );
+                },
+            })
+        Vue.component('input-box', {
+             props: {
+                 rows: Array,
+                 columns: Array,
+             },
+             render: function (createElement) {
+                 var self = this;
+                 var _html = ""
+                 if (row[column.q].includes('checkbox')) {
+
+                     return createElement('tr', self.rows.map(function(row) {
+                         return createElement('td', self.columns.map(function(column) {
+                             return createElement('input', {
+                                 domProps: {
+                                     value: row['id']
+                                 },
+                                 attrs: {
+                                     type: "checkbox"
+                                 },
+                                 on: {
+                                     input:function(event) {
+                                        self.$emit('input', event.target.value)
+                                     }
+
+                                 }
+                             })
+                         }))
+                     }))
+
+                 }
+                 if (!this.editMode) {
+                     _html = row[column.q]
+                 } else {
+                     if (!self.isEmpty(column.attrs)) {
+                         if (column.attrs['edit-enable']) {
+                             var _html = '';
+                             if (column.attrs['edit-type'] == "select") {
+                                 var editType = column.q;
+                                 self.selected[editType] = row[column.q];
+                                 _html = `<select v-model="selected[${column.q}]">
+                                               <option>${row[column.q]}</option>
+                                             </select>
+                                            `;
+                             } else if (column.attrs['edit-type'] == "input") {
+                                 _html = `<input value="${row[column.q]}">`;
+                             } else {
+                                 _html = row[column.q];
+
+                             }
+
+                         }
+                     } else {
+                         _html = row[column.q];
+                     }
+                 }
+                 return _html
+             },
+         })
     </script>
 
 

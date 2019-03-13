@@ -13,6 +13,13 @@ class AssetJsonView(View):
         # 数据库中获取数据
         table_config = [
             {
+                'q': None,
+                'title': 'Select',
+                'display': True,
+                'text': {"content": "<input type='checkbox' />", "kwargs":{}},
+                'attrs': {}
+            },
+            {
                 'q': 'id',
                 'title': 'ID',
                 'display': False,
@@ -72,6 +79,7 @@ class AssetJsonView(View):
         from repository import models
 
         data_list = models.Asset.objects.all().values(*q_list)
+        print(data_list)
         data_list = list(data_list)
 
 
