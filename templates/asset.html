@@ -30,11 +30,15 @@
             <table  class="table table-bordered">
                 <thead>
                     <tr>
-                        <th scope="col" v-for="t in table_list" v-if="t.display" v-text="t.title"></th>
+                        <th scope="col" v-for="c in columns" v-if="c.display" v-text="c.title"></th>
                     </tr>
                 </thead>
                 <tbody>
-                    <inputBox :rows="rows" :columns="table_list"></inputBox>
+                    <tr v-for="row in rows">
+                        <td v-for="column in columns" v-if="column.display" v-html="filterHTML(row, column)">
+
+                        </td>
+                    </tr>
 
                 </tbody>
             </table>
@@ -53,53 +57,46 @@
             data: function() {
                 return {
                     editMode: false,
+                    columns: new Set(),
                     q:[],
-                    table_list: new Set(),
                     rows:[],
                     selected:{"test":1, },
-                    checkedNames: {},
+                    checkedNames: [],
                 }
 
             },
 
             methods: {
-                filterHTML: function(row, column){
+                filterHTML: function(row, column, createElement){
                     var self = this;
-                    var _html = ""
-                    if (row[column.q].includes('checkbox')) {
-                        console.log(row[column.q], row['id'])
-                        _html = `<input type="checkbox"
-                                        v-model="checkedNames"
-                                        value="${row['id']}"
-                                         >`
-                        return _html
+                    var isTrue = row[column.q].toString().includes('checkbox');
+
+                    if (isTrue) {
+                        return `<input type="checkbox" :checked="checkedNames" @change="$event.target.value" >`
                     }
                     if (!this.editMode) {
-                        _html = row[column.q]
-                    }else {
+                        return row[column.q];
+                    } else {
                         if (!self.isEmpty(column.attrs)) {
                             if(column.attrs['edit-enable']) {
-                                var _html = '';
-                                if (column.attrs['edit-type'] == "select") {
+                                if (column.attrs['edit-type'] ==="select") {
                                     var editType = column.q;
                                     self.selected[editType] = row[column.q];
-                                    _html = `<select v-model="selected[${column.q}]">
-                                               <option>${row[column.q]}</option>
-                                             </select>
-                                            `;
-                                } else if(column.attrs['edit-type'] == "input") {
-                                    _html = `<input value="${row[column.q]}">`;
+                                    return `<select v-model="selected[${column.q}]"><option>${row[column.q]}</option></select>`;
+
+                                } else if(column.attrs['edit-type'] === "input") {
+                                    return `<input value="${row[column.q]}">`;
                                 } else {
-                                    _html = row[column.q];
+                                    return row[column.q];
 
                                 }
 
                             }
                         } else {
-                            _html = row[column.q];
+                            return row[column.q];
                         }
                     }
-                    return _html
+
                 },
                 getAttrs: function(i) {
                     return {
@@ -124,13 +121,6 @@
               },
             },
             created: function() {
-                // loop row of  table data:
-                //       loop each column configure object
-                //         if column kwargs start with @id, replace kwargs value with row[id], @@ replace from
-                // globle list. else, do nonthing
-                //           assign kwargs to content by replace method
-                //           assign content to row[column.q]
-                //
                   var self = this;
                   this.$http
                       .get("/web/asset-json.html").then(
@@ -184,7 +174,7 @@
 
                                        }
                                       row_temp[column.q] = content1;
-                                      self.table_list.add(column);
+                                      self.columns.add(column);
 
 
                                   });
@@ -196,64 +186,7 @@
                   );
                 },
             })
-        Vue.component('input-box', {
-             props: {
-                 rows: Array,
-                 columns: Array,
-             },
-             render: function (createElement) {
-                 var self = this;
-                 var _html = ""
-                 if (row[column.q].includes('checkbox')) {
 
-                     return createElement('tr', self.rows.map(function(row) {
-                         return createElement('td', self.columns.map(function(column) {
-                             return createElement('input', {
-                                 domProps: {
-                                     value: row['id']
-                                 },
-                                 attrs: {
-                                     type: "checkbox"
-                                 },
-                                 on: {
-                                     input:function(event) {
-                                        self.$emit('input', event.target.value)
-                                     }
-
-                                 }
-                             })
-                         }))
-                     }))
-
-                 }
-                 if (!this.editMode) {
-                     _html = row[column.q]
-                 } else {
-                     if (!self.isEmpty(column.attrs)) {
-                         if (column.attrs['edit-enable']) {
-                             var _html = '';
-                             if (column.attrs['edit-type'] == "select") {
-                                 var editType = column.q;
-                                 self.selected[editType] = row[column.q];
-                                 _html = `<select v-model="selected[${column.q}]">
-                                               <option>${row[column.q]}</option>
-                                             </select>
-                                            `;
-                             } else if (column.attrs['edit-type'] == "input") {
-                                 _html = `<input value="${row[column.q]}">`;
-                             } else {
-                                 _html = row[column.q];
-
-                             }
-
-                         }
-                     } else {
-                         _html = row[column.q];
-                     }
-                 }
-                 return _html
-             },
-         })
     </script>
 
 
